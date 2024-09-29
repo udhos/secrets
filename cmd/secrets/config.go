@@ -4,14 +4,15 @@ import (
 	"time"
 
 	"github.com/udhos/boilerplate/envconfig"
+	"github.com/udhos/boilerplate/secret"
 )
 
 type config struct {
 	debugLog                       bool
 	listenAddr                     string
+	appPath                        string
 	httpClientTimeout              time.Duration
 	cacheTTL                       time.Duration
-	cacheErrorTTL                  time.Duration
 	healthAddr                     string
 	healthPath                     string
 	metricsAddr                    string
@@ -26,16 +27,19 @@ type config struct {
 	kubegroupForceNamespaceDefault bool
 }
 
-func newConfig(roleSessionName string) config {
+func newConfig(secretClient *secret.Secret) config {
 
-	env := envconfig.NewSimple(roleSessionName)
+	envOptions := envconfig.Options{
+		Secret: secretClient,
+	}
+	env := envconfig.New(envOptions)
 
 	return config{
 		debugLog:          env.Bool("DEBUG_LOG", true),
 		listenAddr:        env.String("LISTEN_ADDR", ":8080"),
+		appPath:           env.String("APP_ROUTE", "/secret"),
 		httpClientTimeout: env.Duration("HTTP_CLIENT_TIMEOUT", 300*time.Second),
 		cacheTTL:          env.Duration("CACHE_TTL", 600*time.Second),
-		cacheErrorTTL:     env.Duration("CACHE_ERROR_TTL", 60*time.Second),
 		healthAddr:        env.String("HEALTH_ADDR", ":8888"),
 		healthPath:        env.String("HEALTH_PATH", "/health"),
 		metricsAddr:       env.String("METRICS_ADDR", ":3000"),

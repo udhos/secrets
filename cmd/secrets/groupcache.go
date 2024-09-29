@@ -9,6 +9,7 @@ import (
 
 	"github.com/modernprogram/groupcache/v2"
 	"github.com/rs/zerolog/log"
+	"github.com/udhos/boilerplate/secret"
 	"github.com/udhos/groupcache_exporter"
 	"github.com/udhos/groupcache_exporter/groupcache/modernprogram"
 	"github.com/udhos/kube/kubeclient"
@@ -82,7 +83,7 @@ func startGroupcache(app *application, forceNamespaceDefault bool) func() {
 			ctx, span := app.tracer.Start(c, me)
 			defer span.End()
 
-			resp, isErrorStatus, errFetch := doFetch(ctx, app.tracer, app.httpClient, key)
+			resp, errFetch := doFetch(ctx, app.tracer, app.secretClient, app.httpClient, key)
 			if errFetch != nil {
 				return errFetch
 			}
@@ -92,13 +93,7 @@ func startGroupcache(app *application, forceNamespaceDefault bool) func() {
 				return fmt.Errorf("%s: marshal json response: %v", me, errJ)
 			}
 
-			var ttl time.Duration
-			if isErrorStatus {
-				ttl = app.cfg.cacheErrorTTL
-			} else {
-				ttl = app.cfg.cacheTTL
-			}
-			expire := time.Now().Add(ttl)
+			expire := time.Now().Add(app.cfg.cacheTTL)
 
 			return dest.SetBytes(data, expire)
 		},
@@ -127,12 +122,20 @@ func startGroupcache(app *application, forceNamespaceDefault bool) func() {
 	return stop
 }
 
-func doFetch(c context.Context, tracer trace.Tracer, httpClient *http.Client,
-	key string) (response, bool, error) {
-	return response{Body: []byte("FIXME"), Status: 999}, true, nil
+func doFetch(_ context.Context, _ trace.Tracer, secretClient *secret.Secret, _ *http.Client,
+	secretName string) (cacheResponse, error) {
+
+	value := secretClient.Retrieve(secretName)
+
+	resp := cacheResponse{
+		SecretValue: value,
+	}
+
+	log.Printf("FIXME doFetch: detect error on Retrieve")
+
+	return resp, nil
 }
 
-type response struct {
-	Body   []byte `json:"body"`
-	Status int    `json:"status"`
+type cacheResponse struct {
+	SecretValue string `json:"secret_value,omitempty"`
 }

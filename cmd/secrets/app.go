@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/modernprogram/groupcache/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
+	"github.com/udhos/boilerplate/secret"
 	"github.com/udhos/otelconfig/oteltrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
@@ -30,13 +33,27 @@ type application struct {
 	cache            *groupcache.Group
 	groupcacheClose  func()
 	httpClient       *http.Client
+	secretClient     *secret.Secret
 }
 
 func newApplication(me string) *application {
+
+	roleArn := os.Getenv("SECRET_ROLE_ARN")
+
+	log.Printf("envconfig.NewSimple: SECRET_ROLE_ARN='%s'", roleArn)
+
+	secretOptions := secret.Options{
+		RoleSessionName: me,
+		RoleArn:         roleArn,
+		Debug:           true,
+	}
+	secretClient := secret.New(secretOptions)
+
 	app := &application{
-		registry: prometheus.NewRegistry(),
-		cfg:      newConfig(me),
-		tracer:   oteltrace.NewNoopTracer(),
+		registry:     prometheus.NewRegistry(),
+		cfg:          newConfig(secretClient),
+		tracer:       oteltrace.NewNoopTracer(),
+		secretClient: secretClient,
 	}
 
 	initApplication(app, app.cfg.kubegroupForceNamespaceDefault)
@@ -72,11 +89,9 @@ func initApplication(app *application, forceNamespaceDefault bool) {
 	mux := http.NewServeMux()
 	app.serverMain = &http.Server{Addr: app.cfg.listenAddr, Handler: mux}
 
-	const route = "/"
+	log.Info().Msgf("registering route: %s %s", app.cfg.listenAddr, app.cfg.appPath)
 
-	log.Info().Msgf("registering route: %s %s", app.cfg.listenAddr, route)
-
-	mux.Handle(route, otelhttp.NewHandler(app, "app.ServerHTTP"))
+	mux.Handle(app.cfg.appPath, otelhttp.NewHandler(app, "app.ServerHTTP"))
 }
 
 func (app *application) run() {
@@ -125,56 +140,81 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	method := r.Method
 
-	key := method + " " + uri
+	body, errBody := io.ReadAll(r.Body)
+	if errBody != nil {
+		httpResponse(w, "", errBody.Error(), 400)
+		return
+	}
 
-	//useCache := mustCache(method, r.URL.RequestURI(), app.restrictMethod, app.restrictRouteRegexp)
+	bodyStr := string(body)
+
+	log.Info().Msgf("%s: body:%s", me, bodyStr)
+
+	var payload secretPayload
+
+	if errJSON := json.Unmarshal(body, &payload); errJSON != nil {
+		httpResponse(w, "", errJSON.Error(), 400)
+		return
+	}
+
+	log.Info().Msgf("%s: secret_name:%s", me, payload.SecretName)
+
+	key := payload.SecretName
 
 	reqIP, _, _ := strings.Cut(r.RemoteAddr, ":")
 
 	resp, errFetch := app.query(ctx, key, reqIP)
 
+	log.Info().Msgf("%s: secret_name:%s secret_value:%s",
+		me, payload.SecretName, resp.SecretValue)
+
 	isFetchError := errFetch != nil
 
 	elap := time.Since(begin)
 
-	outcome := outcomeFrom(resp.Status, isFetchError)
+	outcome := outcomeFrom( /*resp.Status, */ isFetchError)
 
-	app.metrics.recordLatency(r.Method, strconv.Itoa(resp.Status), uri, outcome, elap)
+	app.metrics.recordLatency(r.Method /*strconv.Itoa(resp.Status), */, uri, outcome, elap)
 
 	//
 	// log query status
 	//
 	{
 		traceID := span.SpanContext().TraceID().String()
-		status := resp.Status
+		//status := resp.Status
 		if !isFetchError {
-			if isHTTPError(status) {
-				//
-				// http error
-				//
-				bodyStr := string(resp.Body)
-				log.Error().Str("traceID", traceID).Str("request_ip", reqIP).Str("method", method).Str("uri", uri).Int("response_status", status).Dur("elapsed", elap).Str("response_body", bodyStr).Msgf("ServeHTTP: traceID=%s method=%s url=%s response_status=%d elapsed=%v response_body:%s", traceID, method, uri, status, elap, bodyStr)
-			} else {
-				//
-				// http success
-				//
-				log.Debug().Str("traceID", traceID).Str("request_ip", reqIP).Str("method", method).Str("uri", uri).Int("response_status", status).Dur("elapsed", elap).Msgf("ServeHTTP: traceID=%s method=%s url=%s response_status=%d elapsed=%v", traceID, method, uri, status, elap)
-			}
+			/*
+				if isHTTPError(status) {
+					//
+					// http error
+					//
+					bodyStr := string(resp.Body)
+					log.Error().Str("traceID", traceID).Str("request_ip", reqIP).Str("method", method).Str("uri", uri).Int("response_status", status).Dur("elapsed", elap).Str("response_body", bodyStr).Msgf("ServeHTTP: traceID=%s method=%s url=%s response_status=%d elapsed=%v response_body:%s", traceID, method, uri, status, elap, bodyStr)
+				} else {
+			*/
+			//
+			// http success
+			//
+			log.Debug().Str("traceID", traceID).Str("request_ip", reqIP).Str("method", method).Str("uri", uri).Dur("elapsed", elap).Msgf("ServeHTTP: traceID=%s method=%s url=%s elapsed=%v", traceID, method, uri, elap)
+			//}
 		} else {
-			log.Error().Str("traceID", traceID).Str("request_ip", reqIP).Str("method", method).Str("uri", uri).Int("response_status", status).Str("response_error", errFetch.Error()).Dur("elapsed", elap).Msgf("ServeHTTP: traceID=%s method=%s uri=%s response_status=%d elapsed=%v response_error:%v", traceID, method, uri, status, elap, errFetch)
+			log.Error().Str("traceID", traceID).Str("request_ip", reqIP).Str("method", method).Str("uri", uri).Str("response_error", errFetch.Error()).Dur("elapsed", elap).Msgf("ServeHTTP: traceID=%s method=%s uri=%s elapsed=%v response_error:%v", traceID, method, uri, elap, errFetch)
 		}
 	}
 
 	span.SetAttributes(
 		traceMethod.String(method),
 		traceURI.String(uri),
-		traceResponseStatus.Int(resp.Status),
+		//traceResponseStatus.Int(resp.Status),
 		traceElapsed.String(elap.String()),
 		traceReqIP.String(reqIP),
 	)
 	if isFetchError {
 		span.SetAttributes(traceResponseError.String(errFetch.Error()))
 	}
+
+	var status int
+	var errorMessage string
 
 	//
 	// send response headers (1/3)
@@ -185,51 +225,74 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// send response status (2/3)
 	//
 	if !isFetchError {
-		w.WriteHeader(resp.Status)
+		//w.WriteHeader(resp.Status)
+		//status = resp.Status
+		status = 200
 	} else {
-		w.WriteHeader(500)
+		//w.WriteHeader(500)
+		status = 500
+		errorMessage = errFetch.Error()
 	}
 
-	//
-	// send response body (3/3)
-	//
-	if !isFetchError {
-		w.Write(resp.Body)
-	} else {
-		//
-		// error
-		//
-		if len(resp.Body) > 0 {
-			//
-			// prefer received body
-			//
-			w.Write(resp.Body)
-		} else {
-			fmt.Fprint(w, errFetch.Error())
-		}
-	}
+	httpResponse(w, resp.SecretValue, errorMessage, status)
 }
 
-func (app *application) query(c context.Context, key, _ /*reqIP*/ string) (response, error) {
+func httpResponse(w http.ResponseWriter, secretValue, errorMessage string, code int) {
+
+	body := secretPayload{
+		SecretValue: secretValue,
+		Error:       errorMessage,
+	}
+
+	if code != 0 {
+		body.Status = strconv.Itoa(code)
+	}
+
+	data, errJSON := json.Marshal(body)
+	if errJSON != nil {
+		log.Printf("httpResponse: json error: %v", errJSON)
+	}
+
+	dataStr := string(data)
+
+	log.Printf("httpResponse: response: %s", dataStr)
+
+	h := w.Header()
+	h.Del("Content-Length")
+
+	// There might be content type already set, but we reset it to
+	// text/plain for the error message.
+	h.Set("Content-Type", "application/json; charset=utf-8")
+	h.Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(code)
+	fmt.Fprintln(w, dataStr)
+}
+
+func (app *application) query(c context.Context, key, _ /*reqIP*/ string) (cacheResponse, error) {
 
 	const me = "app.query"
 	ctx, span := app.tracer.Start(c, me)
 	defer span.End()
 
-	var resp response
+	var resp cacheResponse
 	var data []byte
 
 	if errGet := app.cache.Get(ctx, key, groupcache.AllocatingByteSliceSink(&data)); errGet != nil {
 		log.Error().Msgf("key='%s' cache error:%v", key, errGet)
-		resp.Status = 500
 		return resp, errGet
 	}
 
 	if errJ := json.Unmarshal(data, &resp); errJ != nil {
 		log.Error().Msgf("key='%s' json error:%v", key, errJ)
-		resp.Status = 500
 		return resp, errJ
 	}
 
 	return resp, nil
+}
+
+type secretPayload struct {
+	SecretName  string `json:"secret_name,omitempty"`
+	SecretValue string `json:"secret_value,omitempty"`
+	Error       string `json:"error,omitempty"`
+	Status      string `json:"status,omitempty"`
 }
