@@ -6,12 +6,14 @@
 
 # secrets
 
+[secrets](https://github.com/udhos/secrets) is a service to retrieve secrets from multiple secrets sources by using the generic secret name defined in the project [boilerplate](https://github.com/udhos/boilerplate).
+
 # TODO
 
-[ ] slog
-[ ] slog level config
-[ ] review metrics
-[ ] review traces
+- [ ] slog
+- [ ] slog level config
+- [ ] review metrics
+- [ ] review traces
 
 # Test Vault
 
