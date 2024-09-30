@@ -13,11 +13,9 @@ Update files from repo:
 
 Search secrets:
 
-    $ helm search repo secrets -l --version ">=0.0.0"
-    NAME                    CHART VERSION	APP VERSION	DESCRIPTION
-    secrets/secrets	0.3.0   0.3.0      	A Helm chart for Kubernetes
-    secrets/secrets	0.2.0   0.2.0      	A Helm chart for Kubernetes
-    secrets/secrets	0.1.0   0.1.0      	A Helm chart for Kubernetes
+    $ helm search repo secrets/secrets -l --version ">=0.0.0"
+    NAME           	CHART VERSION	APP VERSION	DESCRIPTION
+    secrets/secrets	0.0.1        	0.0.1      	Helm chart to install secrets on kubernetes
 
 To install the charts:
 
