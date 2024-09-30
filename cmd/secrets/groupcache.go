@@ -83,7 +83,7 @@ func startGroupcache(app *application, forceNamespaceDefault bool) func() {
 			ctx, span := app.tracer.Start(c, me)
 			defer span.End()
 
-			resp, errFetch := doFetch(ctx, app.tracer, app.secretClient, app.httpClient, key)
+			resp, errFetch := doFetch(ctx, app.tracer, app.secretClient, key)
 			if errFetch != nil {
 				return errFetch
 			}
@@ -122,16 +122,17 @@ func startGroupcache(app *application, forceNamespaceDefault bool) func() {
 	return stop
 }
 
-func doFetch(_ context.Context, _ trace.Tracer, secretClient *secret.Secret, _ *http.Client,
+func doFetch(_ context.Context, _ trace.Tracer, secretClient *secret.Secret,
 	secretName string) (cacheResponse, error) {
 
-	value := secretClient.Retrieve(secretName)
+	var resp cacheResponse
 
-	resp := cacheResponse{
-		SecretValue: value,
+	value, errSecret := secretClient.RetrieveWithError(secretName)
+	if errSecret != nil {
+		return resp, errSecret
 	}
 
-	log.Printf("FIXME doFetch: detect error on Retrieve")
+	resp.SecretValue = value
 
 	return resp, nil
 }

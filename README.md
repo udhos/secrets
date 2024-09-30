@@ -1,4 +1,17 @@
+[![license](http://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/udhos/secrets/blob/main/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/udhos/secrets)](https://goreportcard.com/report/github.com/udhos/secrets)
+[![Go Reference](https://pkg.go.dev/badge/github.com/udhos/secrets.svg)](https://pkg.go.dev/github.com/udhos/secrets)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/secrets)](https://artifacthub.io/packages/search?repo=secrets)
+[![Docker Pulls](https://img.shields.io/docker/pulls/udhos/secrets)](https://hub.docker.com/r/udhos/secrets)
+
 # secrets
+
+# TODO
+
+[ ] slog
+[ ] slog level config
+[ ] review metrics
+[ ] review traces
 
 # Test Vault
 
@@ -53,7 +66,11 @@ NOTE: Vault client sdk has some limitations: (1) It does no support AWS_PROFILE.
 ```
 # Login into $CLIENT_IAM_ROLE_ARN with `aws sts assume-role` and put values into env vars.
 
+# Start kind: kind create cluster --name lab
+
 # Then run:
+
+export KUBEGROUP_FORCE_NAMESPACE_DEFAULT=true
 
 secrets
 ```

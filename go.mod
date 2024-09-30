@@ -7,7 +7,7 @@ require (
 	github.com/modernprogram/groupcache/v2 v2.6.0
 	github.com/prometheus/client_golang v1.20.4
 	github.com/rs/zerolog v1.33.0
-	github.com/udhos/boilerplate v1.4.2
+	github.com/udhos/boilerplate v1.5.2
 	github.com/udhos/groupcache_exporter v0.1.1
 	github.com/udhos/kube v0.1.0
 	github.com/udhos/kubegroup v1.1.1

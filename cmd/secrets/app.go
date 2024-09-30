@@ -32,7 +32,6 @@ type application struct {
 	serverGroupCache *http.Server
 	cache            *groupcache.Group
 	groupcacheClose  func()
-	httpClient       *http.Client
 	secretClient     *secret.Secret
 }
 
@@ -62,11 +61,6 @@ func newApplication(me string) *application {
 }
 
 func initApplication(app *application, forceNamespaceDefault bool) {
-
-	app.httpClient = &http.Client{
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
-		Timeout:   app.cfg.httpClientTimeout,
-	}
 
 	//
 	// add basic/default instrumentation
@@ -181,17 +175,7 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//
 	{
 		traceID := span.SpanContext().TraceID().String()
-		//status := resp.Status
 		if !isFetchError {
-			/*
-				if isHTTPError(status) {
-					//
-					// http error
-					//
-					bodyStr := string(resp.Body)
-					log.Error().Str("traceID", traceID).Str("request_ip", reqIP).Str("method", method).Str("uri", uri).Int("response_status", status).Dur("elapsed", elap).Str("response_body", bodyStr).Msgf("ServeHTTP: traceID=%s method=%s url=%s response_status=%d elapsed=%v response_body:%s", traceID, method, uri, status, elap, bodyStr)
-				} else {
-			*/
 			//
 			// http success
 			//
@@ -205,7 +189,6 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(
 		traceMethod.String(method),
 		traceURI.String(uri),
-		//traceResponseStatus.Int(resp.Status),
 		traceElapsed.String(elap.String()),
 		traceReqIP.String(reqIP),
 	)
@@ -216,20 +199,9 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var status int
 	var errorMessage string
 
-	//
-	// send response headers (1/3)
-	//
-	//w.Header().Add("a", "b")
-
-	//
-	// send response status (2/3)
-	//
 	if !isFetchError {
-		//w.WriteHeader(resp.Status)
-		//status = resp.Status
 		status = 200
 	} else {
-		//w.WriteHeader(500)
 		status = 500
 		errorMessage = errFetch.Error()
 	}
