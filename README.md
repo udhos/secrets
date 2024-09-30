@@ -1,7 +1,7 @@
 [![license](http://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/udhos/secrets/blob/main/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/udhos/secrets)](https://goreportcard.com/report/github.com/udhos/secrets)
 [![Go Reference](https://pkg.go.dev/badge/github.com/udhos/secrets.svg)](https://pkg.go.dev/github.com/udhos/secrets)
-[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/secrets)](https://artifacthub.io/packages/search?repo=secrets)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/secrets-proxy)](https://artifacthub.io/packages/search?repo=secrets-proxy)
 [![Docker Pulls](https://img.shields.io/docker/pulls/udhos/secrets)](https://hub.docker.com/r/udhos/secrets)
 
 # secrets
