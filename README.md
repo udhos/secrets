@@ -12,8 +12,18 @@
 
 - [ ] slog
 - [ ] slog level config
-- [ ] review metrics
-- [ ] review traces
+- [X] review metrics
+- [X] review traces
+
+# Test
+
+```
+# Start kind: kind create cluster --name lab
+
+./scripts/run-secrets.sh
+
+curl -d '{"secret_name":"aws-parameterstore:sa-east-1:/microservice9/mongodb:uri"}' localhost:8080/secret
+```
 
 # Test Vault
 

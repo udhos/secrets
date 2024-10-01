@@ -39,7 +39,7 @@ func newApplication(me string) *application {
 
 	roleArn := os.Getenv("SECRET_ROLE_ARN")
 
-	log.Printf("envconfig.NewSimple: SECRET_ROLE_ARN='%s'", roleArn)
+	log.Info().Msgf("envconfig.NewSimple: SECRET_ROLE_ARN='%s'", roleArn)
 
 	secretOptions := secret.Options{
 		RoleSessionName: me,
@@ -116,11 +116,17 @@ func httpShutdown(s *http.Server, label string, timeout time.Duration) {
 
 var traceMethod = attribute.Key("method")
 var traceURI = attribute.Key("uri")
-var traceResponseStatus = attribute.Key("response_status")
-var traceResponseError = attribute.Key("response_error")
 var traceElapsed = attribute.Key("elapsed")
-var traceUseCache = attribute.Key("use_cache")
 var traceReqIP = attribute.Key("request_ip")
+var traceResponseError = attribute.Key("response_error")
+
+func ipFromPort(hostPort string) string {
+	i := strings.LastIndexByte(hostPort, ':')
+	if i < 0 {
+		return hostPort
+	}
+	return hostPort[i+1:]
+}
 
 func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
@@ -134,41 +140,22 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	method := r.Method
 
-	body, errBody := io.ReadAll(r.Body)
-	if errBody != nil {
-		httpResponse(w, "", errBody.Error(), 400)
-		return
-	}
+	reqIP := ipFromPort(r.RemoteAddr)
 
-	bodyStr := string(body)
-
-	log.Info().Msgf("%s: body:%s", me, bodyStr)
-
-	var payload secretPayload
-
-	if errJSON := json.Unmarshal(body, &payload); errJSON != nil {
-		httpResponse(w, "", errJSON.Error(), 400)
-		return
-	}
-
-	log.Info().Msgf("%s: secret_name:%s", me, payload.SecretName)
-
-	key := payload.SecretName
-
-	reqIP, _, _ := strings.Cut(r.RemoteAddr, ":")
-
-	resp, errFetch := app.query(ctx, key, reqIP)
-
-	log.Info().Msgf("%s: secret_name:%s secret_value:%s",
-		me, payload.SecretName, resp.SecretValue)
-
-	isFetchError := errFetch != nil
+	resp, status, errFetch := app.handle(ctx, r)
 
 	elap := time.Since(begin)
 
-	outcome := outcomeFrom( /*resp.Status, */ isFetchError)
+	isFetchError := errFetch != nil
 
-	app.metrics.recordLatency(r.Method /*strconv.Itoa(resp.Status), */, uri, outcome, elap)
+	var errorMessage string
+	if isFetchError {
+		errorMessage = errFetch.Error()
+	}
+
+	outcome := outcomeFrom(status, isFetchError)
+
+	app.metrics.recordLatency(method, strconv.Itoa(status), uri, outcome, elap)
 
 	//
 	// log query status
@@ -180,7 +167,6 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// http success
 			//
 			log.Debug().Str("traceID", traceID).Str("request_ip", reqIP).Str("method", method).Str("uri", uri).Dur("elapsed", elap).Msgf("ServeHTTP: traceID=%s method=%s url=%s elapsed=%v", traceID, method, uri, elap)
-			//}
 		} else {
 			log.Error().Str("traceID", traceID).Str("request_ip", reqIP).Str("method", method).Str("uri", uri).Str("response_error", errFetch.Error()).Dur("elapsed", elap).Msgf("ServeHTTP: traceID=%s method=%s uri=%s elapsed=%v response_error:%v", traceID, method, uri, elap, errFetch)
 		}
@@ -193,17 +179,15 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		traceReqIP.String(reqIP),
 	)
 	if isFetchError {
-		span.SetAttributes(traceResponseError.String(errFetch.Error()))
+		span.SetAttributes(traceResponseError.String(errorMessage))
 	}
 
-	var status int
-	var errorMessage string
-
-	if !isFetchError {
-		status = 200
-	} else {
-		status = 500
-		errorMessage = errFetch.Error()
+	if status == 0 {
+		if isFetchError {
+			status = 500
+		} else {
+			status = 200
+		}
 	}
 
 	httpResponse(w, resp.SecretValue, errorMessage, status)
@@ -222,12 +206,12 @@ func httpResponse(w http.ResponseWriter, secretValue, errorMessage string, code 
 
 	data, errJSON := json.Marshal(body)
 	if errJSON != nil {
-		log.Printf("httpResponse: json error: %v", errJSON)
+		log.Error().Msgf("httpResponse: json error: %v", errJSON)
 	}
 
 	dataStr := string(data)
 
-	log.Printf("httpResponse: response: %s", dataStr)
+	log.Info().Msgf("httpResponse: response: %s", dataStr)
 
 	h := w.Header()
 	h.Del("Content-Length")
@@ -240,7 +224,46 @@ func httpResponse(w http.ResponseWriter, secretValue, errorMessage string, code 
 	fmt.Fprintln(w, dataStr)
 }
 
-func (app *application) query(c context.Context, key, _ /*reqIP*/ string) (cacheResponse, error) {
+func (app *application) handle(c context.Context, r *http.Request) (cacheResponse, int, error) {
+
+	const me = "app.handle"
+	ctx, span := app.tracer.Start(c, me)
+	defer span.End()
+
+	var resp cacheResponse
+
+	body, errBody := io.ReadAll(r.Body)
+	if errBody != nil {
+		return resp, 400, errBody
+	}
+
+	bodyStr := string(body)
+
+	log.Info().Msgf("%s: body:%s", me, bodyStr)
+
+	var payload secretPayload
+
+	if errJSON := json.Unmarshal(body, &payload); errJSON != nil {
+		return resp, 400, errJSON
+	}
+
+	log.Info().Msgf("%s: secret_name:%s", me, payload.SecretName)
+
+	key := strings.TrimSpace(payload.SecretName)
+
+	if key == "" {
+		return resp, 400, fmt.Errorf("%s: invalid empty secret name", me)
+	}
+
+	resp, errFetch := app.query(ctx, key)
+
+	log.Info().Msgf("%s: secret_name:%s secret_value:%s",
+		me, payload.SecretName, resp.SecretValue)
+
+	return resp, 0, errFetch
+}
+
+func (app *application) query(c context.Context, key string) (cacheResponse, error) {
 
 	const me = "app.query"
 	ctx, span := app.tracer.Start(c, me)

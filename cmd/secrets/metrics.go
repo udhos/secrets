@@ -13,34 +13,30 @@ type prometheusMetrics struct {
 	latencySpring *prometheus.HistogramVec
 }
 
-func outcomeFrom( /*status int, */ isError bool) string {
+func outcomeFrom(status int, isError bool) string {
 	if isError {
 		return "SERVER_ERROR"
 	}
-	/*
-		if isHTTPError(status) {
-			if status >= 500 && status < 600 {
-				return "SERVER_ERROR"
-			}
-			return "CLIENT_ERROR"
+	if isHTTPError(status) {
+		if status >= 500 && status < 600 {
+			return "SERVER_ERROR"
 		}
-	*/
+		return "CLIENT_ERROR"
+	}
 	return "SUCCESS"
 }
 
-/*
 func isHTTPError(status int) bool {
 	return status < 200 || status > 299
 }
-*/
 
-func (m *prometheusMetrics) recordLatency(method /*status,*/, uri, outcome string, elapsed time.Duration) {
+func (m *prometheusMetrics) recordLatency(method, status, uri, outcome string, elapsed time.Duration) {
 	sec := float64(elapsed) / float64(time.Second)
-	m.latencySpring.WithLabelValues(method /*status, */, uri, outcome).Observe(sec)
+	m.latencySpring.WithLabelValues(method, status, uri, outcome).Observe(sec)
 }
 
 var (
-	dimensionsSpring = []string{"method" /*"status",*/, "uri", "outcome"}
+	dimensionsSpring = []string{"method", "status", "uri", "outcome"}
 )
 
 func newMetrics(registerer prometheus.Registerer, namespace string,
