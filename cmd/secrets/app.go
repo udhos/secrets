@@ -125,7 +125,7 @@ func ipFromPort(hostPort string) string {
 	if i < 0 {
 		return hostPort
 	}
-	return hostPort[i+1:]
+	return hostPort[:i]
 }
 
 func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
