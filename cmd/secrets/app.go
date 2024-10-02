@@ -44,7 +44,7 @@ func newApplication(me string) *application {
 	secretOptions := secret.Options{
 		RoleSessionName: me,
 		RoleArn:         roleArn,
-		Debug:           true,
+		Debug:           envBool("SECRET_DEBUG", true),
 	}
 	secretClient := secret.New(secretOptions)
 
@@ -142,7 +142,7 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	reqIP := ipFromPort(r.RemoteAddr)
 
-	resp, status, errFetch := app.handle(ctx, r)
+	secretName, resp, status, errFetch := app.handle(ctx, r)
 
 	elap := time.Since(begin)
 
@@ -190,10 +190,11 @@ func (app *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpResponse(w, resp.SecretValue, errorMessage, status)
+	httpResponse(w, secretName, resp.SecretValue, errorMessage, status, app.cfg.debugLog, reqIP)
 }
 
-func httpResponse(w http.ResponseWriter, secretValue, errorMessage string, code int) {
+func httpResponse(w http.ResponseWriter, secretName, secretValue,
+	errorMessage string, code int, debug bool, reqIP string) {
 
 	body := secretPayload{
 		SecretValue: secretValue,
@@ -211,7 +212,18 @@ func httpResponse(w http.ResponseWriter, secretValue, errorMessage string, code 
 
 	dataStr := string(data)
 
-	log.Info().Msgf("httpResponse: response: %s", dataStr)
+	var msg string
+	if errorMessage != "" {
+		msg = " error:" + errorMessage
+	}
+
+	if debug {
+		log.Debug().Msgf("httpResponse: request_ip=%s secret_name=%s secret_value=%s status=%d%s",
+			reqIP, secretName, secretValue, code, msg)
+	} else {
+		log.Info().Msgf("httpResponse: request_ip=%s secret_name=%s status=%d%s",
+			reqIP, secretName, code, msg)
+	}
 
 	h := w.Header()
 	h.Del("Content-Length")
@@ -224,7 +236,7 @@ func httpResponse(w http.ResponseWriter, secretValue, errorMessage string, code 
 	fmt.Fprintln(w, dataStr)
 }
 
-func (app *application) handle(c context.Context, r *http.Request) (cacheResponse, int, error) {
+func (app *application) handle(c context.Context, r *http.Request) (string, cacheResponse, int, error) {
 
 	const me = "app.handle"
 	ctx, span := app.tracer.Start(c, me)
@@ -234,33 +246,33 @@ func (app *application) handle(c context.Context, r *http.Request) (cacheRespons
 
 	body, errBody := io.ReadAll(r.Body)
 	if errBody != nil {
-		return resp, 400, errBody
+		return "", resp, 400, errBody
 	}
 
 	bodyStr := string(body)
 
-	log.Info().Msgf("%s: body:%s", me, bodyStr)
+	log.Debug().Msgf("%s: request body:%s", me, bodyStr)
 
 	var payload secretPayload
 
 	if errJSON := json.Unmarshal(body, &payload); errJSON != nil {
-		return resp, 400, errJSON
+		return payload.SecretName, resp, 400, errJSON
 	}
 
-	log.Info().Msgf("%s: secret_name:%s", me, payload.SecretName)
+	log.Debug().Msgf("%s: secret_name:%s", me, payload.SecretName)
 
 	key := strings.TrimSpace(payload.SecretName)
 
 	if key == "" {
-		return resp, 400, fmt.Errorf("%s: invalid empty secret name", me)
+		return payload.SecretName, resp, 400, fmt.Errorf("%s: invalid empty secret name", me)
 	}
 
 	resp, errFetch := app.query(ctx, key)
 
-	log.Info().Msgf("%s: secret_name:%s secret_value:%s",
+	log.Debug().Msgf("%s: secret_name:%s secret_value:%s",
 		me, payload.SecretName, resp.SecretValue)
 
-	return resp, 0, errFetch
+	return payload.SecretName, resp, 0, errFetch
 }
 
 func (app *application) query(c context.Context, key string) (cacheResponse, error) {
@@ -273,14 +285,16 @@ func (app *application) query(c context.Context, key string) (cacheResponse, err
 	var data []byte
 
 	if errGet := app.cache.Get(ctx, key, groupcache.AllocatingByteSliceSink(&data)); errGet != nil {
-		log.Error().Msgf("key='%s' cache error:%v", key, errGet)
+		log.Error().Msgf("%s: key='%s' cache error:%v", me, key, errGet)
 		return resp, errGet
 	}
 
 	if errJ := json.Unmarshal(data, &resp); errJ != nil {
-		log.Error().Msgf("key='%s' json error:%v", key, errJ)
+		log.Error().Msgf("%s: key='%s' json error:%v", me, key, errJ)
 		return resp, errJ
 	}
+
+	log.Debug().Msgf("%s: key='%s' cache secret_value:%v", me, key, resp.SecretValue)
 
 	return resp, nil
 }

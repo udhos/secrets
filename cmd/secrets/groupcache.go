@@ -125,6 +125,8 @@ func startGroupcache(app *application, forceNamespaceDefault bool) func() {
 func doFetch(_ context.Context, _ trace.Tracer, secretClient *secret.Secret,
 	secretName string) (cacheResponse, error) {
 
+	const me = "doFetch"
+
 	begin := time.Now()
 
 	var resp cacheResponse
@@ -133,7 +135,11 @@ func doFetch(_ context.Context, _ trace.Tracer, secretClient *secret.Secret,
 
 	elap := time.Since(begin)
 
-	log.Info().Msgf("doFetch: elap=%v error:%v", elap, errSecret)
+	if errSecret == nil {
+		log.Debug().Msgf("%s: elap=%v secret_value:%s", me, elap, value)
+	} else {
+		log.Error().Msgf("%s: elap=%v error:%v", me, elap, errSecret)
+	}
 
 	if errSecret != nil {
 		return resp, errSecret
