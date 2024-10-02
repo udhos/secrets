@@ -10,8 +10,8 @@
 
 # TODO
 
-- [ ] slog
-- [ ] slog level config
+- [X] slog
+- [X] slog level config
 - [X] review metrics
 - [X] review traces
 

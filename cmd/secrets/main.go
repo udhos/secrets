@@ -16,9 +16,23 @@ import (
 	"github.com/udhos/boilerplate/boilerplate"
 	"github.com/udhos/otelconfig/oteltrace"
 	_ "go.uber.org/automaxprocs"
+	"golang.org/x/sys/unix"
 )
 
 func main() {
+
+	//
+	// https://go.dev/doc/gc-guide#Linux_transparent_huge_pages
+	//
+	if err := unix.Prctl(unix.PR_SET_THP_DISABLE, 1, 0, 0, 0); err != nil {
+		log.Error().Msgf("Prctl: PR_SET_THP_DISABLE error: %v", err)
+	}
+
+	//
+	// initialize zerolog
+	//
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	//
 	// command-line
@@ -59,7 +73,8 @@ func main() {
 	{
 		options := oteltrace.TraceOptions{
 			DefaultService:     me,
-			NoopTracerProvider: false,
+			NoopTracerProvider: !app.cfg.trace,
+			NoopPropagator:     !app.cfg.trace,
 			Debug:              true,
 		}
 

@@ -8,6 +8,7 @@ import (
 )
 
 type config struct {
+	trace                          bool
 	debugLog                       bool
 	listenAddr                     string
 	appPath                        string
@@ -34,6 +35,7 @@ func newConfig(secretClient *secret.Secret) config {
 	env := envconfig.New(envOptions)
 
 	return config{
+		trace:            env.Bool("TRACE", true),
 		debugLog:         env.Bool("DEBUG_LOG", true),
 		listenAddr:       env.String("LISTEN_ADDR", ":8080"),
 		appPath:          env.String("APP_ROUTE", "/secret"),
