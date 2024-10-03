@@ -45,6 +45,7 @@ func newApplication(me string) *application {
 		RoleSessionName: me,
 		RoleArn:         roleArn,
 		Debug:           envBool("SECRET_DEBUG", true),
+		CacheTTLSeconds: -1, // disable in-lib cache
 	}
 	secretClient := secret.New(secretOptions)
 
