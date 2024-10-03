@@ -13,6 +13,7 @@ import (
 
 	"github.com/modernprogram/groupcache/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/rs/zerolog/log"
 	"github.com/udhos/boilerplate/secret"
 	"github.com/udhos/otelconfig/oteltrace"
@@ -66,8 +67,8 @@ func initApplication(app *application, forceNamespaceDefault bool) {
 	//
 	// add basic/default instrumentation
 	//
-	app.registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-	app.registry.MustRegister(prometheus.NewGoCollector())
+	app.registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	app.registry.MustRegister(collectors.NewGoCollector())
 
 	app.metrics = newMetrics(app.registry, app.cfg.metricsNamespace,
 		app.cfg.metricsBucketsLatencyHTTP)
