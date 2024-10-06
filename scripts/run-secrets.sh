@@ -4,7 +4,7 @@ echo
 echo Start kind: kind create cluster --name lab
 echo
 
-export TRACE=false
+export TRACE=true
 export DEBUG_LOG=false
 export SECRET_DEBUG=false
 export KUBEGROUP_FORCE_NAMESPACE_DEFAULT=true
