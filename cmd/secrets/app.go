@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/rs/zerolog/log"
+	"github.com/udhos/boilerplate/awsconfig"
 	"github.com/udhos/boilerplate/secret"
 	"github.com/udhos/otelconfig/oteltrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -42,11 +43,15 @@ func newApplication(me string) *application {
 
 	log.Info().Msgf("envconfig.NewSimple: SECRET_ROLE_ARN='%s'", roleArn)
 
-	secretOptions := secret.Options{
-		RoleSessionName: me,
+	awsConfOptions := awsconfig.Options{
 		RoleArn:         roleArn,
+		RoleSessionName: me,
+	}
+
+	secretOptions := secret.Options{
 		Debug:           envBool("SECRET_DEBUG", true),
 		CacheTTLSeconds: -1, // disable in-lib cache
+		AwsConfigSource: &secret.AwsConfigSource{AwsConfigOptions: awsConfOptions},
 	}
 	secretClient := secret.New(secretOptions)
 

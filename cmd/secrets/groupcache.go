@@ -103,7 +103,7 @@ func startGroupcache(app *application, forceNamespaceDefault bool) func() {
 	//
 	// 64 MB max per-node memory usage
 	app.cache = groupcache.NewGroupWithWorkspace(workspace, "path",
-		app.cfg.groupcacheSizeBytes, getter)
+		app.cfg.groupcachePurgeExpired, app.cfg.groupcacheSizeBytes, getter)
 
 	//
 	// expose prometheus metrics for groupcache

@@ -21,6 +21,7 @@ type config struct {
 	metricsBucketsLatencyHTTP      []float64
 	groupcachePort                 string
 	groupcacheSizeBytes            int64
+	groupcachePurgeExpired         bool
 	kubegroupMetricsNamespace      string
 	kubegroupDebug                 bool
 	kubegroupLabelSelector         string
@@ -49,6 +50,7 @@ func newConfig(secretClient *secret.Secret) config {
 			[]float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5}),
 		groupcachePort:                 env.String("GROUPCACHE_PORT", ":5000"),
 		groupcacheSizeBytes:            env.Int64("GROUPCACHE_SIZE_BYTES", 1_000_000),
+		groupcachePurgeExpired:         env.Bool("GROUPCACHE_PURGE_EXPIRED", true),
 		kubegroupMetricsNamespace:      env.String("KUBEGROUP_METRICS_NAMESPACE", ""),
 		kubegroupDebug:                 env.Bool("KUBEGROUP_DEBUG", true),
 		kubegroupLabelSelector:         env.String("KUBEGROUP_LABEL_SELECTOR", "app=secrets"),
