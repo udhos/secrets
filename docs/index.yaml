@@ -2,6 +2,18 @@ apiVersion: v1
 entries:
   secrets:
   - apiVersion: v2
+    appVersion: 1.0.6
+    created: "2025-04-09T17:00:25.264213074-03:00"
+    description: Helm chart to install secrets on kubernetes
+    digest: b3e88f1195f855ec10f1e2fa37756171d9d44dc26901c233e025f7d8a4b5d5eb
+    name: secrets
+    sources:
+    - https://github.com/udhos/secrets
+    type: application
+    urls:
+    - https://udhos.github.io/secrets/secrets-1.0.6.tgz
+    version: 1.0.6
+  - apiVersion: v2
     appVersion: 1.0.5
     created: "2024-12-19T21:23:37.022711749-03:00"
     description: Helm chart to install secrets on kubernetes
@@ -109,4 +121,4 @@ entries:
     urls:
     - https://udhos.github.io/secrets/secrets-0.0.1.tgz
     version: 0.0.1
-generated: "2024-12-19T21:23:37.02208357-03:00"
+generated: "2025-04-09T17:00:25.263224543-03:00"

@@ -291,7 +291,8 @@ func (app *application) query(c context.Context, key string) (cacheResponse, err
 	var resp cacheResponse
 	var data []byte
 
-	if errGet := app.cache.Get(ctx, key, groupcache.AllocatingByteSliceSink(&data)); errGet != nil {
+	if errGet := app.cache.Get(ctx, key,
+		groupcache.AllocatingByteSliceSink(&data), nil); errGet != nil {
 		log.Error().Msgf("%s: key='%s' cache error:%v", me, key, errGet)
 		return resp, errGet
 	}
